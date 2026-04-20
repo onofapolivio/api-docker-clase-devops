@@ -1,0 +1,56 @@
+name: "CI - Build and Push Docker Image"
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: "Checkout del repositorio"
+        uses: actions/checkout@v3
+
+      - name: "Configurar QEMU (multi-arquitectura)"
+        uses: docker/setup-qemu-action@v2
+
+      - name: "Configurar Docker Buildx"
+        uses: docker/setup-buildx-action@v2
+
+      - name: "Configurar tag dinámico"
+        run: |
+          if [ "$GITHUB_REF" == "refs/heads/main" ] || [ "$GITHUB_REF" == "refs/heads/master" ]; then
+            echo "DOCKER_TAG=latest" >> $GITHUB_ENV
+          else
+            echo "DOCKER_TAG=snapshot" >> $GITHUB_ENV
+          fi
+          echo "VCS_REF=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
+          echo "BUILD_DATE=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> $GITHUB_ENV
+
+      - name: "Configurar credenciales de AWS"
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - name: "Login en AWS ECR Público"
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v1
+        with:
+          registry-type: public
+
+      - name: "Compilar y subir imagen Docker a ECR Público"
+        uses: docker/build-push-action@v4
+        env:
+          REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        with:
+          context: .
+          file: ./Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ vars.AWS_REGISTRY_ALIAS }}/${{ vars.AWS_REPOSITORY }}:${{ env.DOCKER_TAG }}
+          build-args: |
+            VCS_REF=${{ env.VCS_REF }}
+            BUILD_DATE=${{ env.BUILD_DATE }}
