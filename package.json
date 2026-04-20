@@ -1,0 +1,12 @@
+{
+  "name": "api-docker-clase",
+  "version": "1.0.0",
+  "description": "API simple para clases de Docker y GitHub Actions",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2"
+  }
+}
